@@ -1,36 +1,71 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-
+https: // github.com/wmmboko/IRA-analysis
 
 # Select your link
-excel_file = '/Users/williesmboko/Desktop/IRA analysis/2018_Q4_Statistics-Locked.xlsx'
+excel_file = '2018_Q4_Statistics-Locked.xlsx'
 
 # %%
 """
-This section identifies the sheet names to be used in analysis. It then classifies the sheet as either life
-or general
+This section identifies the sheet names to be used in analysis.
+It then classifies the sheet as either lifeor general
 """
+# ____________________________________________________________________________#
 
-# Specifies which worksheet to read
-Sheet_Names = pd.read_excel(excel_file, sheet_name='Table of Contents')
-# Deletes the columns with NaN for the whole column
-Sheet_Names.dropna(axis=1, how='all', inplace=True)
-Sheet_Names.dropna(axis=0, how='any', inplace=True)  # Deletes any row with NaN
-Sheet_Names.columns = Sheet_Names.iloc[0]  # Giving the data column titles from the first row
-Sheet_Names = Sheet_Names.iloc[1:]  # Deleting the first row
-Sheet_Names.reset_index(drop=True, inplace=True)  # Reindexing the data set
+# Specifies which worksheet to read. I had to use the Table of Contents since
+# naming was not consistent sheet to sheet
+
+sheet_names = pd.read_excel(excel_file, sheet_name='Table of Contents',
+                            header=6, usecols=[1, 2])
+sheet_names['Link'] = sheet_names['Link'].apply(lambda x: x.strip("''"))
+# identifies different report types
+gen_sheets = sheet_names[sheet_names['Description'].str.contains('GENERAL')]
+life_sheets = sheet_names[~sheet_names['Description'].str.contains('GENERAL')]
+
+bal_sheets = sheet_names[sheet_names['Description'].str.contains('BALANCE')]
+pnl_sheets = sheet_names[~sheet_names['Description'].str.contains('BALANCE')]
 
 
-# Any description having the name General the business is general
-Sheet_Names.loc[Sheet_Names.Description.str.contains('GENERAL'), 'BUSINESS'] = 'GENERAL'
-# Any description missing the word General is assumed to be life
-Sheet_Names.loc[~Sheet_Names.Description.str.contains('GENERAL'), 'BUSINESS'] = 'LIFE'
+def ReadData(sheet):
+    df = pd.read_excel(excel_file, sheet_name=sheet)
+    return df
 
-# Any Description missing the word balance is assumed to be P&L item
-Sheet_Names.loc[~Sheet_Names.Description.str.contains('BALANCE'), 'TYPE'] = 'P&L'
-# Any description having the word balance is assumed to be a balancesheet item
-Sheet_Names.loc[Sheet_Names.Description.str.contains('BALANCE'), 'TYPE'] = 'BAL_SHEET'
+
+# identify general companies
+ds1 = ReadData(gen_sheets['Link'][0])
+rem_list = ['TOTAL', 'REINSURERS',
+            'GRAND TOTAL', 'Amounts in Thousand Shillings']
+gen_companies = list(ds1.iloc[4:, 1])
+gen_companies_r = list(filter(lambda x: 'REINS' in x, gen_companies))
+rem_list.extend(gen_companies_r)
+gen_companies = list(filter(lambda x: x not in rem_list, gen_companies))
+
+# identify life companies
+ds1 = ReadData(life_sheets['Link'][1])
+rem_list = ['TOTAL', 'REINSURERS',
+            'GRAND TOTAL', 'Amounts in Thousand Shillings']
+life_companies = list(ds1.iloc[4:, 1])
+life_companies_r = list(filter(lambda x: 'REINS' in x, life_companies))
+rem_list.extend(life_companies_r)
+life_companies = list(filter(lambda x: x not in rem_list, life_companies))
+del ds1
+# premium summaries
+
+gb_prem = ReadData("APPENDIX 13")
+header = gb_prem[gb_prem.iloc[:, 1] == 'Company'].dropna(axis=1)
+header.values.tolist()
+
+
+gb_prem = gb_prem[gb_prem.iloc[:, 1].isin(gen_companies)].dropna(axis=1, how='all')
+gb_prem.columns = header.values.tolist()
+gb_prem.columns[3]
+
+gb_prem.sort_values(by=gb_prem[0:5].columns[4], ascending=False, inplace=True)
+data = gb_prem[gb_prem.columns[4]].head()
+plt.hist(data.astype('int32'))
+plt.show()
+data.astype('int32')
 # %%
 """
 This function cleans up data and generates seperate data sets for insurance
@@ -39,10 +74,13 @@ and reinsurance data sets, regardless of whether it is Life or General
 
 
 def ReadData(sheet):
-    df = pd.read_excel(excel_file, sheet_name=sheet)  # Specifies which worksheet to read
+    # Specifies which worksheet to read
+    df = pd.read_excel(excel_file, sheet_name=sheet)
 
-    df.dropna(axis=0, how='all', inplace=True)  # Deletes rows that is fully NaN
-    df.dropna(axis=1, how='all', inplace=True)  # Deletes columns that is fully NaN
+    # Deletes rows that is fully NaN
+    df.dropna(axis=0, how='all', inplace=True)
+    # Deletes columns that is fully NaN
+    df.dropna(axis=1, how='all', inplace=True)
 
     Data_Description = df.iloc[0, 0]  # Takes a specific data frame
     df = df.iloc[1:, :]  # Omits the first row from the data frame
@@ -50,28 +88,35 @@ def ReadData(sheet):
 
     df.columns = df.iloc[0, :]  # Takes the first row of the data frame
     df = df.iloc[1:, :]
-    df = df.loc[~df.Company.str.match('TOTAL')]  # Retains any row not having the word Total
+    # Retains any row not having the word Total
+    df = df.loc[~df.Company.str.match('TOTAL')]
 
     # Any company name not having the name the, the first word is taken
-    df.loc[~(df.Company.str.split().str[0] == 'THE'), 'Adj_company'] = df.Company.str.split().str[0]
+    df.loc[~(df.Company.str.split().str[0] == 'THE'),
+           'Adj_company'] = df.Company.str.split().str[0]
     # Any company name having the, the second name is taken
-    df.loc[(df.Company.str.split().str[0] == 'THE'), 'Adj_company'] = df.Company.str.split().str[1]
+    df.loc[(df.Company.str.split().str[0] == 'THE'),
+           'Adj_company'] = df.Company.str.split().str[1]
 
     df.index = df.iloc[:, -1]  # taking of the last column to be the index
     df = df.iloc[:, 1:]
 
-    df_ins = df.loc[:'REINSURERS'].copy()  # Separating data up to row having the name Reinsurers
-    df_rei = df.loc['REINSURERS':].copy()  # Separating data from row having the name Reinsurers
+    # Separating data up to row having the name Reinsurers
+    df_ins = df.loc[:'REINSURERS'].copy()
+    # Separating data from row having the name Reinsurers
+    df_rei = df.loc['REINSURERS':].copy()
 
-    df_ins.dropna(axis=0, thresh=5, inplace=True)  # drop rows with 5 or more NaN
-    df_rei.dropna(axis=0, thresh=5, inplace=True)  # drop rows with 5 or more NaN
+    # drop rows with 5 or more NaN
+    df_ins.dropna(axis=0, thresh=5, inplace=True)
+    # drop rows with 5 or more NaN
+    df_rei.dropna(axis=0, thresh=5, inplace=True)
 
     df_ins.drop('Adj_company', axis=1, inplace=True)
     df_rei.drop('Adj_company', axis=1, inplace=True)
 
     df_x = [df_ins, df_rei]
     for i in df_x:
-        for col in i.columns[0:(len(df.columns.values)-1)]:
+        for col in i.columns[0:(len(df.columns.values) - 1)]:
             i[col] = pd.to_numeric(i[col], errors='coerce')
 
     return df_ins
@@ -91,9 +136,9 @@ GB_Classes = list(df_ins.columns[0:14].values)  # .values
 
 df_ins.columns = pd.MultiIndex.from_product([[GB_class_sheets['desc'][0]],
                                              df_ins.columns], names=['PREMIUM', 'CLASS'])
-for i in range(len(GB_class_sheets['link'])-1):
-    df = ReadData(GB_class_sheets['link'][i+1])
-    df.columns = pd.MultiIndex.from_product([[GB_class_sheets['desc'][i+1]],
+for i in range(len(GB_class_sheets['link']) - 1):
+    df = ReadData(GB_class_sheets['link'][i + 1])
+    df.columns = pd.MultiIndex.from_product([[GB_class_sheets['desc'][i + 1]],
                                              df.columns], names=['PREMIUM', 'CLASS'])
     df_ins = pd.merge(df, df_ins, right_index=True, left_index=True)
 del df
@@ -108,7 +153,8 @@ df_ins.sort_values(by=[('PREMIUM', 'Motor Private')], ascending=False)[
 # PLOT TOP 5 COMPANIES
 # for i in GB_Classes:
 
-df_ins.sort_values(by=[('PREMIUM', 'Total\r\n')], ascending=False, inplace=True)
+df_ins.sort_values(by=[('PREMIUM', 'Total\r\n')],
+                   ascending=False, inplace=True)
 
 Spec_classes = ['Motor Private', 'Motor Commercial', 'Medical', 'Others']
 S1 = df_ins.loc[:, ['PREMIUM', 'INCURRED_RATIO']]
@@ -130,8 +176,8 @@ ax1 = ax.twinx()
 p5 = ax1.plot(y_pos, a5, label='Overall LR')
 p1 = ax.bar(y_pos, a1, align='center', label='Motor Private', alpha=0.85)
 p2 = ax.bar(y_pos, a2, bottom=a1, label='Motor Commercial', alpha=0.85)
-p3 = ax.bar(y_pos, a3, bottom=a1+a2, label='Medical', alpha=0.85)
-p4 = ax.bar(y_pos, a4, bottom=a1+a2+a3, label='Others', alpha=0.85)
+p3 = ax.bar(y_pos, a3, bottom=a1 + a2, label='Medical', alpha=0.85)
+p4 = ax.bar(y_pos, a4, bottom=a1 + a2 + a3, label='Others', alpha=0.85)
 plt.xticks(y_pos, S1.index[0:5])
 fig.legend(loc="upper center")
 plt.tight_layout()
@@ -145,7 +191,8 @@ G1 = ax.bar(Plot_data.index.values, Plot_data['PREMIUM']
             [i], label='PREMIUM', align='center', alpha=0.3)
 G2 = ax.bar(Plot_data.index.values, Plot_data['UW_PROFIT']
             [i], label='UW_PROFIT', align='center', alpha=0.2)
-G3 = ax1.plot(Plot_data.index.values, Plot_data['INCURRED_RATIO'][i], label='INCURRED_RATIO')
+G3 = ax1.plot(Plot_data.index.values,
+              Plot_data['INCURRED_RATIO'][i], label='INCURRED_RATIO')
 ax1.grid(None)
 # leg=plt.legend()
 fig.legend(loc="upper left")
@@ -164,7 +211,8 @@ for i in GB_Classes:
                 [i], label='PREMIUM', align='center', alpha=0.3)
     G2 = ax.bar(Plot_data.index.values, Plot_data['UW_PROFIT']
                 [i], label='UW_PROFIT', align='center', alpha=0.2)
-    G3 = ax1.plot(Plot_data.index.values, Plot_data['INCURRED_RATIO'][i], label='INCURRED_RATIO')
+    G3 = ax1.plot(Plot_data.index.values,
+                  Plot_data['INCURRED_RATIO'][i], label='INCURRED_RATIO')
     ax1.grid(None)
     # leg=plt.legend()
     fig.legend(loc="upper left")
@@ -174,7 +222,7 @@ for i in GB_Classes:
 
 
 for i in range(2):
-    plt.subplot(2, 1, i+1)
+    plt.subplot(2, 1, i + 1)
     title = df_ins.columns[i]
     df_ins.sort_values(by=[title], ascending=False, inplace=True)
     Plot_data = df_ins[title][0:4]
