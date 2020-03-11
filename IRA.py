@@ -1,9 +1,9 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+=======
 from functools import reduce
 plt.rcdefaults()
-
 
 def sheet_names(year):
     """extract list of available sheets and their categories"""
@@ -30,7 +30,6 @@ def read_data(year, sheet):
         str(year) + '_Q3_Statistics.xlsx'  # link to your file
     df = pd.read_excel(excel_file, sheet_name=sheet)
     return df
-
 
 def get_companies(year, sheet_number, x_sheets):
     """ extract list of companies"""
