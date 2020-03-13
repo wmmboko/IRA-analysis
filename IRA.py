@@ -1,9 +1,22 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-=======
 from functools import reduce
-plt.rcdefaults()
+
+
+def strip_name(name):
+    """Simplifies company display name """
+    denied_names = ['INSURANCE', 'INSURANE', 'COMPANY', 'GENERAL', 'THE',
+                    'ASSURANCE', 'LION', 'SHIELD', 'KENYA']
+    sep_names = name.split(" ")
+    sep_names_fltd = list(
+        filter(lambda name: name not in denied_names, sep_names))
+    final_word = ""
+    for i in range(len(sep_names_fltd)):
+        final_word += sep_names_fltd[i]
+        final_word += " "
+    return final_word
+
 
 def sheet_names(year):
     """extract list of available sheets and their categories"""
@@ -31,6 +44,7 @@ def read_data(year, sheet):
     df = pd.read_excel(excel_file, sheet_name=sheet)
     return df
 
+
 def get_companies(year, sheet_number, x_sheets):
     """ extract list of companies"""
     rem_list = ['TOTAL', 'REINSURERS',
@@ -51,27 +65,37 @@ def extract_pl_table(year, sheet, x_companies):
     x_company --> (gen_companies,life_companies)"""
     df = read_data(year, sheet)
     header = df[df.iloc[:, 1] == 'Company'].dropna(axis=1)
+    # header = list(map(lambda y: y.strip(), header))
     df = df[df.iloc[:, 1].isin(
         x_companies)].dropna(axis=1, how='all')
     df.columns = header.values[0].tolist()
-    df.reset_index(drop=True, inplace=True)
+    df.columns = [x.strip() for x in df.columns]
+    df['Company'] = df['Company'].apply(strip_name)
+    df['Company'] = df['Company'].apply(lambda x: x.strip())
+    df.set_index('Company', inplace=True)
+    # df.reset_index(drop=True, inplace=True)
     for col in df.columns[1:]:  # converts all numbers to type float
         df[col] = df[col].astype('float')
     return df
 
 
-def strip_name(name):
-    """Simplifies company display name """
-    denied_names = ['INSURANCE', 'INSURANE', 'COMPANY', 'GENERAL', 'THE',
-                    'ASSURANCE', 'LION', 'SHIELD', 'KENYA']
-    sep_names = name.split(" ")
-    sep_names_fltd = list(
-        filter(lambda name: name not in denied_names, sep_names))
-    final_word = ""
-    for i in range(len(sep_names_fltd)):
-        final_word += sep_names_fltd[i]
-        final_word += " "
-    return final_word
+def extract_bs_table(year, sheet, x_companies):
+    """Extracts profit and loss tables from the sheets,\
+    x_company --> (gen_companies,life_companies)"""
+    df = read_data(year, sheet)
+    header = df[df.iloc[:, 1] == 'Company'].dropna(axis=1)
+    df = df.dropna(axis=1, how='all')
+    header = header.values[0]
+    df = df.iloc[:, range(len(header))]
+    df.columns = [strip_name(x).strip() for x in header]
+    df.drop(index=[0, 1, 2, 3, 38], inplace=True)
+    df = df.T
+    df.columns = df.iloc[0, :].values
+    df.drop(axis=0, index='Company', inplace=True)
+    # df.reset_index(drop=True, inplace=True)
+    for col in df.columns[1:]:  # converts all numbers to type float
+        df[col] = df[col].astype('float')
+    return df
 
 
 def millions(x, pos):
@@ -91,12 +115,58 @@ def auto_label(rects):
                     ha='center', va='bottom')
 
 
-# TODO : compare sheets in different years and highlight new companies
+# # TODO: construct data structure using dictonaries
+
+# # TODO : compare sheets in different years and highlight new companies
+class_names = ['Aviation ', 'Engineering', 'Fire Domestic', 'Fire Industrial',
+               'Liability', 'Marine', 'Motor Private', 'Motor Commercial',
+               'Motor Commercial PSV', 'Personal Accident', 'Theft',
+               "Workmens' Compensation", 'Medical', 'Miscellaneous']
+
 gen_sheets_2019, life_sheets_2019, bal_sheets_2019, pnl_sheets_2019 = \
     sheet_names(2019)
 gen_companies, gen_companies_rein = get_companies(2019, 0, gen_sheets_2019)
 life_companies, life_companies_rein = get_companies(2019, 1, life_sheets_2019)
 
+ira_data = {'general': {'class_data': {'premium': 'a',
+                                       'market_share': 'b',
+                                       'loss_ratio': 'c',
+                                       'claims_paid': 'd',
+                                       'underwriting_profits': 'e',
+                                       'claims_incurred': 'f'},
+                        'profit_loss_account': {'p&l': 'g',
+                                                'revenue': 'h'},
+                        'bal_sheet_account': ['c', 'd']
+                        },
+            'life': {'class_data': {'premium': 'a',
+                                    'market_share': 'b'},
+                     'profit_loss_account': ['a', 'b'],
+                     'bal_sheet_account': ['c', 'd']}
+            }
+# import class data
+ira_data["general"]["class_data"]["premium"] = extract_pl_table(
+    2018, "APPENDIX 13", gen_companies)
+ira_data["general"]["class_data"]["market_share"] = extract_pl_table(
+    2018, "APPENDIX 14", gen_companies)
+ira_data["general"]["class_data"]["loss_ratio"] = extract_pl_table(
+    2018, "APPENDIX 17", gen_companies)
+ira_data["general"]["class_data"]["claims_paid"] = extract_pl_table(
+    2018, "APPENDIX 15", gen_companies)
+ira_data["general"]["class_data"]["underwriting_profits"] = extract_pl_table(
+    2018, "APPENDIX 18", gen_companies)
+ira_data["general"]["class_data"]["claims_incurred"] = extract_pl_table(
+    2018, "APPENDIX 16", gen_companies)
+
+# import P&L account
+ira_data["general"]["profit_loss_account"]['p&l'] = extract_pl_table(
+    2018, 3, gen_companies)  # problem importing 'APPENDIX 1'
+ira_data["general"]["profit_loss_account"]['revenue'] = extract_pl_table(
+    2018, "APPENDIX 19", gen_companies)
+ira_data["general"]["profit_loss_account"]['revenue']
+
+# import balance sheet account
+ira_data["general"]["bal_sheet_account"] = reduce(lambda left, right: pd.concat([left, right], sort=False), [
+    extract_bs_table(2018, i, gen_companies) for i in range(31, 35)])
 
 # extract data here with these extract_pl_table
 prem_2018 = extract_pl_table(2018, "APPENDIX 13", gen_companies)
@@ -105,6 +175,7 @@ market_share_2018 = extract_pl_table(2018, "APPENDIX 14", gen_companies)
 market_share_2019 = extract_pl_table(2019, "APPENDIX 14", gen_companies)
 loss_ratio_2018 = extract_pl_table(2018, "APPENDIX 17", gen_companies)
 loss_ratio_2019 = extract_pl_table(2019, "APPENDIX 17", gen_companies)
+
 
 # simplify company names
 for sheets in [prem_2018, prem_2019,
@@ -120,8 +191,10 @@ names = ['Company',
          '2019_market share',
          '2018_loss ratio',
          '2019_loss ratio']
-prem_2019.columns[i]
-# TODO insert for loop here
+
+
+plt.rcdefaults()
+# plot per class info
 for i in range(8, 9):
     plot_data = reduce(lambda left, right: left.merge(right, on='Company'),
                        [
@@ -141,9 +214,10 @@ for i in range(8, 9):
     color1 = '#fec615'
     color2 = '#800020'
 
-    # oop style
-    fig, ax = plt.subplots(2, 2, figsize=(12, 12))
+    # oop style declarations
+    fig, ax = plt.subplots(2, 2, constrained_layout=True)
     x_pos = np.arange(1, 6)
+    # plot gross premium per class
     ax[0, 0].set_title('gross premium', fontweight='bold')
     width = 0.4
     ax[0, 0].bar(x_pos - width/2,
@@ -176,6 +250,7 @@ for i in range(8, 9):
     ax[0, 0].set_ylabel('KES B')
     ax[0, 0].legend()
 
+    # plot loss ratio rank
     ax[1, 0].plot(plot_data['2018_loss ratio'].rank(pct=True, ascending=False),
                   plot_data['2019_loss ratio'].rank(pct=True, ascending=False),
                   color='b', marker='o', linestyle='None')
@@ -190,11 +265,13 @@ for i in range(8, 9):
     plt.setp(ax[1, 0].get_xticklabels(), visible=False)
     plt.setp(ax[1, 0].get_yticklabels(), visible=False)
 
+    # plot loss ratios
     ax[0, 1].set_title('loss ratio', fontweight='bold')
     ax[0, 1].plot(plot_data['2018_loss ratio'].head(5),
                   marker='o', linestyle='--', label='2018')
     ax[0, 1].plot(plot_data['2019_loss ratio'].head(5),
                   marker='x', linestyle='--', label='2019')
     ax[0, 1].legend()
-    plt.tight_layout()
+    fig.suptitle('{}'.format(prem_2018.columns[i]))
+    # plt.tight_layout()
     plt.show()
