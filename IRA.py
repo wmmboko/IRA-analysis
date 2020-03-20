@@ -19,7 +19,8 @@ def strip_name(name):
 def sheet_names(year, quarter=4):
     """extract list of available sheets and their categories"""
     excel_file = '/Users/williesmboko/Desktop/Python/IRA analysis/' + \
-        str(year) + '_Q'+str(quarter)+'_Statistics.xlsx'  # link to your file
+        str(year) + '_Q' + str(quarter) + \
+        '_Statistics.xlsx'  # link to your file
     sheet_names = pd.read_excel(excel_file, sheet_name='Table of Contents',
                                 header=6, usecols=[1, 2])
     sheet_names['Link'] = sheet_names['Link'].apply(lambda x: x.strip("''"))
@@ -38,7 +39,8 @@ def sheet_names(year, quarter=4):
 def read_data(sheet, year=2018, quarter=4):
     """reads data given a specified sheet"""
     excel_file = '/Users/williesmboko/Desktop/Python/IRA analysis/' + \
-        str(year) + '_Q'+str(quarter)+'_Statistics.xlsx'  # link to your file
+        str(year) + '_Q' + str(quarter) + \
+        '_Statistics.xlsx'  # link to your file
     df = pd.read_excel(excel_file, sheet_name=sheet)
     return df
 
@@ -70,7 +72,8 @@ def extract_pl_table(year, quarter, sheet, x_companies):
     df['Company'] = df['Company'].apply(strip_name)
     df['Company'] = df['Company'].apply(lambda x: x.strip())
     df.set_index('Company', inplace=True)
-    for col in range(len(df.columns[1:])):  # converts all numbers to type float
+    # converts all numbers to type float
+    for col in range(len(df.columns[1:])):
         #df.iloc[:, col] = df.iloc[:, col].astype('float')
         df.iloc[:, col] = pd.to_numeric(df.iloc[:, col], errors='coerce')
     return df
@@ -100,44 +103,64 @@ def extract_bs_table(year, quarter, sheet, x_companies):
 gen_sheets_2019, life_sheets_2019, bal_sheets_2019, pnl_sheets_2019 = \
     sheet_names(2019, 3)
 gen_companies, gen_companies_rein = get_companies(0, gen_sheets_2019, 2019, 3)
-life_companies, life_companies_rein = get_companies(1, life_sheets_2019, 2019, 3)
+life_companies, life_companies_rein = get_companies(
+    1, life_sheets_2019, 2019, 3)
+gen_sheets_2019
 
-ira_data = {}
-for y in range(2018, 2020):
-    if y not in ira_data:
-        ira_data[y] = {}
-        for q in range(1, 5):
-            if q not in ira_data[y]:
-                ira_data[y][q] = {}
-                ira_data[y][q]["general"] = {}
-                ira_data[y][q]["life"] = {}
 
-                ira_data[y][q]["general"]["class_data"] = {}
-                ira_data[y][q]["general"]["profit_loss_account"] = {}
-                ira_data[y][q]["general"]["bal_sheet_account"] = {}
+class Gb_data:
+    class_names = ['Aviation', 'Engineering', 'Fire Domestic',
+                   'Fire Industrial', 'Liability', 'Marine', 'Motor Private',
+                   'Motor Commercial', 'Personal Accident', 'Theft',
+                   "Workmens' Compensation", 'Medical', 'Miscellaneous']
 
-                ira_data[y][q]["general"]["class_data"]["premium"] = extract_pl_table(
-                    y, q, "APPENDIX 13", gen_companies)
-                ira_data[y][q]["general"]["class_data"]["market_share"] = extract_pl_table(
-                    y, q, "APPENDIX 14", gen_companies)
-                ira_data[y][q]["general"]["class_data"]["loss_ratio"] = extract_pl_table(
-                    y, q, "APPENDIX 17", gen_companies)
-                ira_data[y][q]["general"]["class_data"]["claims_paid"] = extract_pl_table(
-                    y, q, "APPENDIX 15", gen_companies)
-                ira_data[y][q]["general"]["class_data"]["underwriting_profits"] = extract_pl_table(
-                    y, q, "APPENDIX 18", gen_companies)
-                ira_data[y][q]["general"]["class_data"]["claims_incurred"] = extract_pl_table(
-                    y, q, "APPENDIX 16", gen_companies)
-                # import P&L account
-                ira_data[y][q]["general"]["profit_loss_account"]['p&l'] = extract_pl_table(
-                    y, q, 3, gen_companies)  # problem importing 'APPENDIX 1'
-                ira_data[y][q]["general"]["profit_loss_account"]['revenue'] = extract_pl_table(
-                    y, q, "APPENDIX 19", gen_companies)
-                # import balance sheet account
-                ira_data[y][q]["general"]["bal_sheet_account"] =\
-                    reduce(lambda left, right: pd.concat([left, right], sort=False),
-                           [extract_bs_table(y, q, i, gen_companies) for i in [-4, -3, -2, -1]])
+    def __init__(self, year, quarter):
+        self.year = year
+        self.quarter = quarter
 
-                ira_data[y][q]["life"]["class_data"] = {}
-                ira_data[y][q]["life"]["profit_loss_account"] = {}
-                ira_data[y][q]["life"]["bal_sheet_account"] = {}
+    def premium(self, classes=class_names):
+        """extract gross premium per specified class"""
+        return extract_pl_table(self.year, self.quarter,
+                                "APPENDIX 13", gen_companies)[classes]
+
+    def market_share(self, classes=class_names):
+        """extract market share per specified class"""
+        return extract_pl_table(self.year, self.quarter,
+                                "APPENDIX 14", gen_companies)[classes]
+
+    def loss_ratio(self, classes=class_names):
+        """extract loss ratio per specified class"""
+        return extract_pl_table(self.year, self.quarter,
+                                "APPENDIX 17", gen_companies)[classes]
+
+    def claims_paid(self, classes=class_names):
+        """extract claims paid per specified class"""
+        return extract_pl_table(self.year, self.quarter,
+                                "APPENDIX 15", gen_companies)[classes]
+
+    def underwriting_profits(self, classes=class_names):
+        """extract underwriting profits per specified class"""
+        return extract_pl_table(self.year, self.quarter,
+                                "APPENDIX 18", gen_companies)[classes]
+
+    def claims_incurred(self, classes=class_names):
+        """extract claims incurred per specified class"""
+        return extract_pl_table(self.year, self.quarter,
+                                "APPENDIX 16", gen_companies)[classes]
+
+    def profit_loss_account(self, classes=class_names):
+        """extract profit and loss account per specified class"""
+        return extract_pl_table(self.year, self.quarter,
+                                "APPENDIX 1 ", gen_companies)
+
+    def revenue_account(self):
+        """extract revenue account"""
+        return extract_pl_table(self.year, self.quarter,
+                                "APPENDIX 19", gen_companies)
+
+    def bal_sheet_account(self):
+        """extract balance sheet"""
+        return reduce(lambda left, right: pd.concat([left, right], sort=False),
+                      [extract_bs_table(self.year,
+                                        self.quarter,
+                                        i, gen_companies)for i in [-4, -3, -2, -1]])
