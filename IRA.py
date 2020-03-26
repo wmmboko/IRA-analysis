@@ -74,7 +74,7 @@ def extract_pl_table(year, quarter, sheet, x_companies):
     df.set_index('Company', inplace=True)
     # converts all numbers to type float
     for col in range(len(df.columns[1:])):
-        #df.iloc[:, col] = df.iloc[:, col].astype('float')
+        # df.iloc[:, col] = df.iloc[:, col].astype('float')
         df.iloc[:, col] = pd.to_numeric(df.iloc[:, col], errors='coerce')
     return df
 
@@ -103,9 +103,9 @@ def extract_bs_table(year, quarter, sheet, x_companies):
 gen_sheets_2019, life_sheets_2019, bal_sheets_2019, pnl_sheets_2019 = \
     sheet_names(2019, 3)
 gen_companies, gen_companies_rein = get_companies(0, gen_sheets_2019, 2019, 3)
+
 life_companies, life_companies_rein = get_companies(
     1, life_sheets_2019, 2019, 3)
-gen_sheets_2019
 
 
 class Gb_data:
@@ -161,6 +161,8 @@ class Gb_data:
     def bal_sheet_account(self):
         """extract balance sheet"""
         return reduce(lambda left, right: pd.concat([left, right], sort=False),
-                      [extract_bs_table(self.year,
+                      (extract_bs_table(self.year,
                                         self.quarter,
-                                        i, gen_companies)for i in [-4, -3, -2, -1]])
+                                        i, gen_companies)for i in [-4, -3,
+
+                                                                   -2, -1]))
